@@ -1,23 +1,26 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const cookieParser = require('cookie-parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// 允許你的 GitHub 前端跨網域帶上 Cookie 憑證！
+app.use(cors({
+    origin: "https://nings123.github.io",
+    credentials: true
+}));
 app.use(express.json());
-
-// 用來儲存當前連線的全局變數
-let savedCookies = [];
+app.use(cookieParser());
 
 app.get('/', (req, res) => {
-    res.send('🎉 Zenith 2FA 核心已全面啟動！');
+    res.send('🎉 Zenith 獨立 Session 安全版已啟動！');
 });
 
 // 1. 初始化與帳密登入
 app.post('/api/auth/login', async (req, res) => {
     try {
-        // 第一步：先向 Riot 拿取初始授權工作階段
+        // 先拿取初始授權工作階段
         const initRes = await axios.post('https://auth.riotgames.com/api/v1/authorization', {
             client_id: "play-valorant-web-prod",
             response_type: "token id_token",
@@ -28,7 +31,7 @@ app.post('/api/auth/login', async (req, res) => {
 
         let currentCookies = initRes.headers['set-cookie'] || [];
 
-        // 第二步：直接帶上 Cookie 提交帳密
+        // 帶上初始 Cookie 提交帳密
         const loginRes = await axios.put('https://auth.riotgames.com/api/v1/authorization', {
             type: "auth",
             username: req.body.username,
@@ -42,16 +45,16 @@ app.post('/api/auth/login', async (req, res) => {
             }
         });
 
+        // 將這一次的專屬 Cookie 存在用戶自己的瀏覽器 Cookie 裡，絕不跟別人混淆
         if (loginRes.headers['set-cookie']) {
-            savedCookies = loginRes.headers['set-cookie'];
+            res.setHeader('Set-Cookie', loginRes.headers['set-cookie']);
         }
 
         res.json(loginRes.data);
     } catch (error) {
-        // 當觸發 2FA 的時候，Riot 會噴出 400 錯誤，我們要在這裡攔截它
         if (error.response && error.response.data) {
             if (error.response.headers['set-cookie']) {
-                savedCookies = error.response.headers['set-cookie'];
+                res.setHeader('Set-Cookie', error.response.headers['set-cookie']);
             }
             return res.json(error.response.data);
         }
@@ -59,16 +62,19 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// 2. 專門用來送出 6 位數驗證碼的通道
+// 2. 獨立的 2FA 驗證碼通道
 app.post('/api/auth/mfa', async (req, res) => {
     try {
+        // 從使用者的瀏覽器要求中，把剛剛存的 Riot Cookie 還原出來
+        const userCookies = req.headers.cookie || '';
+
         const mfaRes = await axios.put('https://auth.riotgames.com/api/v1/authorization', {
             type: "mfa",
             code: req.body.code,
             remember: true
         }, {
             headers: {
-                'Cookie': savedCookies.join('; '),
+                'Cookie': userCookies,
                 'Content-Type': 'application/json',
                 'User-Agent': 'RiotClient/60.0.6.4870919.4742074 rso-auth (windows)'
             }
@@ -84,5 +90,5 @@ app.post('/api/auth/mfa', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`Server is running securely on port ${PORT}`);
 });
