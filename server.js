@@ -21,6 +21,11 @@ app.post('/api/auth/init', async (req, res) => {
             redirect_uri: "https://playvalorant.com/opt_in",
             scope: "openid link ban",
             nonce: "1"
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+            }
         });
         if (response.headers['set-cookie']) riotCookies = response.headers['set-cookie'];
         res.json(response.data);
@@ -40,7 +45,7 @@ app.put('/api/auth/login', async (req, res) => {
             headers: {
                 'Cookie': riotCookies.join('; '),
                 'Content-Type': 'application/json',
-                'User-Agent': 'RiotClient/60.0.6.4870919.4742074 rso-auth (windows)'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
             }
         });
         res.json(response.data);
